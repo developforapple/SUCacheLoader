@@ -10,6 +10,5 @@
 #define SULoaderCategory_h
 
 #import "NSURL+SULoader.h"
-#import "NSString+SULoader.h"
 
 #endif /* SULoaderCategory_h */

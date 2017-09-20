@@ -76,11 +76,6 @@ typedef NS_ENUM(NSInteger, SUPlayerState) {
 - (BOOL)currentItemCacheState;
 
 /**
- *  当前歌曲缓存文件完整路径
- */
-- (NSString *)currentItemCacheFilePath;
-
-/**
  *  清除缓存
  */
 + (BOOL)clearCache;

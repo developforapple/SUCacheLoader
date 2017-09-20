@@ -251,13 +251,6 @@
     return NO;
 }
 
-- (NSString *)currentItemCacheFilePath {
-    if (![self currentItemCacheState]) {
-        return nil;
-    }
-    return [NSString stringWithFormat:@"%@/%@", [NSString cacheFolderPath], [NSString fileNameWithURL:self.url]];;
-}
-
 + (BOOL)clearCache {
     [[SUFileCache sharedCache] clearTmpDatas];
     return YES;

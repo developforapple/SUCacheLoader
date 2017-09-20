@@ -48,8 +48,6 @@
 - (void)storeMediaData:(NSData *)data
                 forKey:(NSString *)key;
 
-
-
 /**
  读取媒体数据
 
