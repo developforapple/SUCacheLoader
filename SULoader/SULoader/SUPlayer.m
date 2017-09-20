@@ -12,6 +12,7 @@
 
 @property (nonatomic, strong) NSURL * url;
 @property (nonatomic, strong) AVPlayer * player;
+@property (nonatomic, strong) AVPlayerLayer *layer;
 @property (nonatomic, strong) AVPlayerItem * currentItem;
 @property (nonatomic, strong) SUResourceLoader * resourceLoader;
 
@@ -30,11 +31,21 @@
     return self;
 }
 
+- (instancetype)initWithURL:(NSURL *)url layer:(AVPlayerLayer *)layer
+{
+    if (self == [super init]) {
+        self.url = url;
+        self.layer = layer;
+        [self reloadCurrentItem];
+    }
+    return self;
+}
+
 - (void)reloadCurrentItem {
     //Item
     if ([self.url.absoluteString hasPrefix:@"http"]) {
         //有缓存播放缓存文件
-        NSString * cacheFilePath = [SUFileCache cacheFileExistsWithURL:self.url];
+        NSString * cacheFilePath = [[SUFileCache sharedCache] existFullyMediaDataPath:[SUFileCache keyForURL:self.url.absoluteString]];
         if (cacheFilePath) {
             NSURL * url = [NSURL fileURLWithPath:cacheFilePath];
             self.currentItem = [AVPlayerItem playerItemWithURL:url];
@@ -55,6 +66,7 @@
     }
     //Player
     self.player = [AVPlayer playerWithPlayerItem:self.currentItem];
+    self.layer.player = self.player;
     
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(audioSessionInterrupted:) name:AVAudioSessionInterruptionNotification object:nil];
 
@@ -247,7 +259,7 @@
 }
 
 + (BOOL)clearCache {
-    [SUFileCache clearCache];
+    [[SUFileCache sharedCache] clearTmpDatas];
     return YES;
 }
 

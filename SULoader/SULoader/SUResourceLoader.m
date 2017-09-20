@@ -131,7 +131,9 @@
     
 //    NSLog(@"cacheLength %ld, requestedOffset %lld, currentOffset %lld, canReadLength %ld, requestedLength %ld", cacheLength, loadingRequest.dataRequest.requestedOffset, loadingRequest.dataRequest.currentOffset,canReadLength, loadingRequest.dataRequest.requestedLength);
     
-    [loadingRequest.dataRequest respondWithData:[SUFileCache readTempFileDataWithOffset:requestedOffset - self.requestTask.requestOffset length:respondLength]];
+    NSRange readRange = NSMakeRange(requestedOffset - self.requestTask.requestOffset, respondLength);
+    NSData *data = [[SUFileCache sharedCache] readMediaData:self.requestTask.cacheKey range:readRange];
+    [loadingRequest.dataRequest respondWithData:data];
     
     //如果完全响应了所需要的数据，则完成
     NSUInteger nowendOffset = requestedOffset + canReadLength;

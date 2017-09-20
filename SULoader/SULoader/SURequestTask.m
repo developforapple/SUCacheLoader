@@ -19,12 +19,13 @@
 
 - (instancetype)init {
     if (self = [super init]) {
-        [SUFileCache createTempFile];
+        __unused SUFileCache *cache = [SUFileCache sharedCache];
     }
     return self;
 }
 
 - (void)start {
+    self.cacheKey = [SUFileCache keyForURL:self.requestURL];
     NSMutableURLRequest * request = [NSMutableURLRequest requestWithURL:[self.requestURL originalSchemeURL] cachePolicy:NSURLRequestReloadIgnoringCacheData timeoutInterval:RequestTimeout];
     if (self.requestOffset > 0) {
         [request addValue:[NSString stringWithFormat:@"bytes=%ld-%ld", self.requestOffset, self.fileLength - 1] forHTTPHeaderField:@"Range"];
@@ -59,7 +60,9 @@
 //服务器返回数据 可能会调用多次
 - (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveData:(NSData *)data {
     if (self.cancel) return;
-    [SUFileCache writeTempFileData:data];
+    
+    [[SUFileCache sharedCache] storeMediaData:data forKey:self.cacheKey];
+    
     self.cacheLength += data.length;
     if (self.delegate && [self.delegate respondsToSelector:@selector(requestTaskDidUpdateCache)]) {
         [self.delegate requestTaskDidUpdateCache];
@@ -78,7 +81,9 @@
         }else {
             //可以缓存则保存文件
             if (self.cache) {
-                [SUFileCache cacheTempFileWithFileName:[NSString fileNameWithURL:self.requestURL]];
+                
+                [[SUFileCache sharedCache] saveMediaTmpDataToFullyData:self.cacheKey];
+        
             }
             if (self.delegate && [self.delegate respondsToSelector:@selector(requestTaskDidFinishLoadingWithCache:)]) {
                 [self.delegate requestTaskDidFinishLoadingWithCache:self.cache];

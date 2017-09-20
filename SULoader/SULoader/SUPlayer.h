@@ -31,6 +31,15 @@ typedef NS_ENUM(NSInteger, SUPlayerState) {
 - (instancetype)initWithURL:(NSURL *)url;
 
 /**
+ 播放视频初始化方法
+
+ @param url 视频链接或者本地地址
+ @param layer 显示视频的layer
+ @return instance
+ */
+- (instancetype)initWithURL:(NSURL *)url layer:(AVPlayerLayer *)layer;
+
+/**
  *  播放下一首歌曲，url：歌曲的网络地址或者本地地址
  *  逻辑：stop -> replace -> play
  */

@@ -33,6 +33,7 @@
 @property (nonatomic, assign) NSUInteger cacheLength; //缓冲长度
 @property (nonatomic, assign) BOOL cache; //是否缓存文件
 @property (nonatomic, assign) BOOL cancel; //是否取消请求
+@property (nonatomic, copy) NSString *cacheKey;
 
 /**
  *  开始请求
