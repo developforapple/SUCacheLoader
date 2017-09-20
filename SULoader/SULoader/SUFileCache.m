@@ -1,21 +1,23 @@
 //
-//  SUFileHandle.m
+//  SUFileCache.m
 //  SULoader
 //
 //  Created by 万众科技 on 16/6/28.
 //  Copyright © 2016年 万众科技. All rights reserved.
 //
 
-#import "SUFileHandle.h"
+#import "SUFileCache.h"
 
-@interface SUFileHandle ()
+NSString *const kSUFileCacheDefaultName = @"default";
+
+@interface SUFileCache ()
 
 @property (nonatomic, strong) NSFileHandle * writeFileHandle;
 @property (nonatomic, strong) NSFileHandle * readFileHandle;
 
 @end
 
-@implementation SUFileHandle
+@implementation SUFileCache
 
 + (BOOL)createTempFile {
     NSFileManager * manager = [NSFileManager defaultManager];

@@ -34,7 +34,7 @@
     //Item
     if ([self.url.absoluteString hasPrefix:@"http"]) {
         //有缓存播放缓存文件
-        NSString * cacheFilePath = [SUFileHandle cacheFileExistsWithURL:self.url];
+        NSString * cacheFilePath = [SUFileCache cacheFileExistsWithURL:self.url];
         if (cacheFilePath) {
             NSURL * url = [NSURL fileURLWithPath:cacheFilePath];
             self.currentItem = [AVPlayerItem playerItemWithURL:url];
@@ -247,7 +247,7 @@
 }
 
 + (BOOL)clearCache {
-    [SUFileHandle clearCache];
+    [SUFileCache clearCache];
     return YES;
 }
 

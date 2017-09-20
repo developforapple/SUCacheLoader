@@ -19,7 +19,7 @@
 
 - (instancetype)init {
     if (self = [super init]) {
-        [SUFileHandle createTempFile];
+        [SUFileCache createTempFile];
     }
     return self;
 }
@@ -59,7 +59,7 @@
 //服务器返回数据 可能会调用多次
 - (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveData:(NSData *)data {
     if (self.cancel) return;
-    [SUFileHandle writeTempFileData:data];
+    [SUFileCache writeTempFileData:data];
     self.cacheLength += data.length;
     if (self.delegate && [self.delegate respondsToSelector:@selector(requestTaskDidUpdateCache)]) {
         [self.delegate requestTaskDidUpdateCache];
@@ -78,7 +78,7 @@
         }else {
             //可以缓存则保存文件
             if (self.cache) {
-                [SUFileHandle cacheTempFileWithFileName:[NSString fileNameWithURL:self.requestURL]];
+                [SUFileCache cacheTempFileWithFileName:[NSString fileNameWithURL:self.requestURL]];
             }
             if (self.delegate && [self.delegate respondsToSelector:@selector(requestTaskDidFinishLoadingWithCache:)]) {
                 [self.delegate requestTaskDidFinishLoadingWithCache:self.cache];

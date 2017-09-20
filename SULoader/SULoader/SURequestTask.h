@@ -7,7 +7,7 @@
 //
 
 #import <Foundation/Foundation.h>
-#import "SUFileHandle.h"
+#import "SUFileCache.h"
 
 #define RequestTimeout 10.0
 
