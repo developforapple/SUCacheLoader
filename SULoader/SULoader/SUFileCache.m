@@ -9,7 +9,6 @@
 #import "SUFileCache.h"
 
 @interface SUFileCache ()
-@property (strong, nonatomic) NSMutableDictionary<NSString *, NSFileHandle *> *fileHandles;
 @end
 
 @implementation SUFileCache
@@ -28,16 +27,63 @@
 {
     self = [super init];
     if (self) {
-        self.tmpDataDirectory = [NSTemporaryDirectory() stringByAppendingPathComponent:@"SUFileCache"];
-        self.fullyDataDirectory = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject stringByAppendingPathComponent:@"SUFileCache"];
         
-        self.fileHandles = [NSMutableDictionary dictionary];
+        NSString *tmp = [NSTemporaryDirectory() stringByAppendingPathComponent:@"SUFileCache"];
+        [SUFileCache createDirectoryIfNeed:tmp];
         
+        NSString *defaultMainDirectory = [tmp stringByAppendingPathComponent:@"main"];
+        NSString *defaultTmpDirectory = [tmp stringByAppendingPathComponent:@"tmp"];
+        NSString *defaultFullyDirectory = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject stringByAppendingPathComponent:@"MediaFiles"];
+        
+        [self setDirecotry:defaultMainDirectory forCacheType:SUFileCacheTypeMain];
+        [self setDirecotry:defaultTmpDirectory forCacheType:SUFileCacheTypeTmp];
+        [self setDirecotry:defaultFullyDirectory forCacheType:SUFileCacheTypeFully];
     }
     return self;
 }
 
-+ (void)createDorectoryIfNeed:(NSString *)directory
+- (void)setDirecotry:(NSString *)directory forCacheType:(SUFileCacheType)type
+{
+    [SUFileCache createDirectoryIfNeed:directory];
+    switch (type) {
+        case SUFileCacheTypeMain: _mainDirectory = [directory copy];break;
+        case SUFileCacheTypeTmp: _tmpDirectory = [directory copy];break;
+        case SUFileCacheTypeFully: _fullyDirectory = [directory copy];break;
+    }
+}
+
+- (NSString *)directoryForType:(SUFileCacheType)type
+{
+    switch (type) {
+        case SUFileCacheTypeMain:   return _mainDirectory;break;
+        case SUFileCacheTypeTmp:    return _tmpDirectory;break;
+        case SUFileCacheTypeFully:  return _fullyDirectory;break;
+    }
+    return nil;
+}
+
+- (NSString *)cacheFilePath:(NSString *)key cacheType:(SUFileCacheType)type
+{
+    NSString *directory = [self directoryForType:type];
+    NSString *path = [directory stringByAppendingPathComponent:key];
+    return path;
+}
+
+- (BOOL)cacheFileExists:(NSString *)key cacheType:(SUFileCacheType)type
+{
+    return [SUFileCache fileExist:[self cacheFilePath:key cacheType:type]];
+}
+
+- (NSString *)existsCacheFilePath:(NSString *)key cacheType:(SUFileCacheType)type
+{
+    NSString *path = [self cacheFilePath:key cacheType:type];
+    if ([SUFileCache fileExist:path]) {
+        return path;
+    }
+    return nil;
+}
+
++ (void)createDirectoryIfNeed:(NSString *)directory
 {
     BOOL isDirectory;
     if ([[NSFileManager defaultManager] fileExistsAtPath:directory isDirectory:&isDirectory]) {
@@ -54,19 +100,7 @@
 {
     NSURLComponents *compontents = [NSURLComponents componentsWithString:url];
     compontents.scheme = nil;
-    return compontents.URL.absoluteString;
-}
-
-- (void)setTmpDataDirectory:(NSString *)tmpDataDirectory
-{
-    _tmpDataDirectory = [tmpDataDirectory copy];
-    [SUFileCache createDorectoryIfNeed:_tmpDataDirectory];
-}
-
-- (void)setFullyDataDirectory:(NSString *)fullyDataDirectory
-{
-    _fullyDataDirectory = [fullyDataDirectory copy];
-    [SUFileCache createDorectoryIfNeed:fullyDataDirectory];
+    return [@(compontents.URL.absoluteString.hash) stringValue];
 }
 
 + (BOOL)fileExist:(NSString *)filePath
@@ -74,91 +108,93 @@
     return [[NSFileManager defaultManager] fileExistsAtPath:filePath];
 }
 
-- (NSString *)tmpDataFilePath:(NSString *)key
+- (NSFileHandle *)getFileHandle:(NSString *)key cacheType:(SUFileCacheType)type readonly:(BOOL)readonly
 {
-    return [_tmpDataDirectory stringByAppendingPathComponent:key];
-}
-
-- (NSString *)fullyDataFilePath:(NSString *)key
-{
-    return [_fullyDataDirectory stringByAppendingPathComponent:key];
-}
-
-- (NSFileHandle *)tmpFileHandleForKey:(NSString *)key
-{
-    NSString *path = [self tmpDataFilePath:key];
+    NSString *path = [self cacheFilePath:key cacheType:type];
     if (![SUFileCache fileExist:path]) {
         [[NSFileManager defaultManager] createFileAtPath:path contents:[NSData data] attributes:nil];
     }
-    NSFileHandle *handle = self.fileHandles[key];
-    if (!handle) {
-        handle = [NSFileHandle fileHandleForUpdatingAtPath:path];
-        self.fileHandles[key] = handle;
+    if (readonly) {
+        return [NSFileHandle fileHandleForReadingAtPath:path];
+    }else{
+        return [NSFileHandle fileHandleForUpdatingAtPath:path];
     }
-    return handle;
 }
 
 - (void)storeMediaData:(NSData *)data
                 forKey:(NSString *)key
+             cacheType:(SUFileCacheType)type
 {
-    NSFileHandle *handle = [self tmpFileHandleForKey:key];
+    if (!data || !key || type == SUFileCacheTypeFully) return;
+    
+    NSFileHandle *handle = [self getFileHandle:key cacheType:type readonly:NO];
     [handle seekToEndOfFile];
     [handle writeData:data];
 }
 
+- (void)resetMediaData:(NSString *)key
+             cacheType:(SUFileCacheType)type
+{
+    NSString *path = [self cacheFilePath:key cacheType:type];
+    [[NSFileManager defaultManager] removeItemAtPath:path error:nil];
+}
+
 - (NSData *)readMediaData:(NSString *)key
                     range:(NSRange)range
+                cacheType:(SUFileCacheType)type
 {
-    NSString *fullyFilePath = [self fullyDataFilePath:key];
-    if ([SUFileCache fileExist:fullyFilePath]) {
-        // 从完整文件去读
-        NSFileHandle *handle = [NSFileHandle fileHandleForReadingAtPath:fullyFilePath];
-        [handle seekToFileOffset:range.location];
-        return [handle readDataOfLength:range.length];
-    }
-    
-    // 从临时文件去读
-    NSFileHandle *handle = [self tmpFileHandleForKey:key];
-    long long length = [handle seekToEndOfFile];
-    if (length >= NSMaxRange(range)) {
+    NSFileHandle *handle = [self getFileHandle:key cacheType:type readonly:YES];
+    long long curLength = [handle seekToEndOfFile];
+    if (curLength >= NSMaxRange(range)) {
         [handle seekToFileOffset:range.location];
         return [handle readDataOfLength:range.length];
     }
     return nil;
 }
 
-- (void)saveMediaTmpDataToFullyData:(NSString *)key
+- (BOOL)isMainDataCompleted:(NSString *)key
+                     expect:(long long)expectedLength
 {
-    NSString *tmpFilePath = [self tmpDataFilePath:key];
-    if (![SUFileCache fileExist:tmpFilePath]) return;
-    
-    NSString *fullyFilePath = [self fullyDataFilePath:key];
-    
-    [[NSFileManager defaultManager] removeItemAtPath:fullyFilePath error:nil];
-    [[NSFileManager defaultManager] moveItemAtPath:tmpFilePath toPath:fullyFilePath error:nil];
+    NSString *path = [self cacheFilePath:key cacheType:SUFileCacheTypeMain];
+    NSNumber *fileSize = [[NSFileManager defaultManager] attributesOfItemAtPath:path error:nil][NSFileSize];
+    return fileSize.longLongValue == expectedLength;
 }
 
-- (NSString *)existFullyMediaDataPath:(NSString *)key
+- (void)saveMainDataAsFullyData:(NSString *)key
 {
-    NSString *path = [self fullyDataFilePath:key];
-    if ([SUFileCache fileExist:path]) {
-        return path;
-    }
-    return nil;
+    NSString *mainPath = [self cacheFilePath:key cacheType:SUFileCacheTypeMain];
+    NSString *fullyPath = [self cacheFilePath:key cacheType:SUFileCacheTypeFully];
+    if (![SUFileCache fileExist:mainPath]) return;
+    [[NSFileManager defaultManager] removeItemAtPath:fullyPath error:nil];
+    [[NSFileManager defaultManager] moveItemAtPath:mainPath toPath:fullyPath error:nil];
 }
 
-- (void)clearTmpMediaData:(NSString *)key
+- (void)clear:(SUFileCacheType)type
 {
-    self.fileHandles[key] = nil;
-    NSString *tmpFilePath = [self tmpDataFilePath:key];
-    [[NSFileManager defaultManager] removeItemAtPath:tmpFilePath error:nil];
+    NSString *directory = [self directoryForType:type];
+    [[NSFileManager defaultManager] removeItemAtPath:directory error:nil];
+    [SUFileCache createDirectoryIfNeed:directory];
 }
 
-- (void)clearTmpDatas
+- (void)clearAll
 {
-    [self.fileHandles removeAllObjects];
-    [[NSFileManager defaultManager] removeItemAtPath:_tmpDataDirectory error:nil];
-    [SUFileCache createDorectoryIfNeed:_tmpDataDirectory];
+    [self clear:SUFileCacheTypeTmp];
+    [self clear:SUFileCacheTypeMain];
+    [self clear:SUFileCacheTypeFully];
+}
+
+- (long long)diskUsageSize:(SUFileCacheType)type
+{
+    NSString *directory = [self directoryForType:type];
+    NSNumber *size = [[NSFileManager defaultManager] attributesOfItemAtPath:directory error:nil][NSFileSize];
+    return size.longLongValue;
+}
+
+- (long long)cacheSize:(NSString *)key cacheType:(SUFileCacheType)type
+{
+    NSString *path = [self cacheFilePath:key cacheType:type];
+    NSNumber *size = [[NSFileManager defaultManager] attributesOfItemAtPath:path error:nil][NSFileSize];
+    return size.longLongValue;
 }
 
 @end

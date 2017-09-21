@@ -7,86 +7,63 @@
 //
 
 #import <Foundation/Foundation.h>
-#import "SULoaderCategory.h"
 
+typedef NS_ENUM(NSUInteger, SUFileCacheType) {
+    SUFileCacheTypeMain,    //从0开始缓存，不完整
+    SUFileCacheTypeTmp,     //从非0开始缓存，不完整
+    SUFileCacheTypeFully,   //从0开始缓存，完整
+};
 
 @interface SUFileCache : NSObject
 
-/**
- 共享缓存
-
- @return instance
- */
 + (instancetype)sharedCache;
 
-/**
- 未生成完整媒体文件之前，临时文件存放的位置。默认为 /tmp/SUFileCache/ 目录
- */
-@property (copy, nonatomic) NSString *tmpDataDirectory;
+// 默认 /tmp/SUFileCache/main
+@property (copy, readonly, nonatomic) NSString *mainDirectory;
+// 默认 /tmp/SUFileCache/tmp
+@property (copy, readonly, nonatomic) NSString *tmpDirectory;
+// 默认 /Documents/MediaFiles
+@property (copy, readonly, nonatomic) NSString *fullyDirectory;
 
-/**
- 媒体文件下载完成之后，如果是完整的，将会被转移到此目录下。默认为 /Documents/SUFileCache/ 目录
- */
-@property (copy, nonatomic) NSString *fullyDataDirectory;
+// 缓存文件目录
+- (void)setDirecotry:(NSString *)directory forCacheType:(SUFileCacheType)type;
+- (NSString *)directoryForType:(SUFileCacheType)type;
 
-/**
- 根据url创建key，url将忽略scheme
+// 缓存文件状态
+- (NSString *)cacheFilePath:(NSString *)key cacheType:(SUFileCacheType)type;
+- (BOOL)cacheFileExists:(NSString *)key cacheType:(SUFileCacheType)type;
+- (NSString *)existsCacheFilePath:(NSString *)key cacheType:(SUFileCacheType)type;
 
- @param url url
- @return key
- */
+// 根据url创建key，url将忽略scheme
 + (NSString *)keyForURL:(NSString *)url;
 
-
-/**
- 存放一段媒体文件数据。相同的key对应相同的数据。
- data先保存在缓冲区中，当达到足够大小时，写入到文件中。
-
- @param data 媒体数据
- @param key 对应的key
- */
+// 保存数据到对应的缓存文件中. type为SUFileCacheTypeFully无效
 - (void)storeMediaData:(NSData *)data
-                forKey:(NSString *)key;
+                forKey:(NSString *)key
+             cacheType:(SUFileCacheType)type;
 
-/**
- 读取媒体数据
+// 重置缓存
+- (void)resetMediaData:(NSString *)key
+             cacheType:(SUFileCacheType)type;
 
- @param key 缓存key
- @param range 读取范围
- @return NSData
- */
+// 读取缓存数据。range是相对于当前缓存文件的range
 - (NSData *)readMediaData:(NSString *)key
-                    range:(NSRange)range;
+                    range:(NSRange)range
+                cacheType:(SUFileCacheType)type;
 
-/**
- 保存临时文件为完整文件。此方法不做文件完整性鉴别。调用后将会删除临时文件。
+// 主体文件是否完整
+- (BOOL)isMainDataCompleted:(NSString *)key
+                     expect:(long long)expectedLength;
 
- @param key 缓存key
- */
-- (void)saveMediaTmpDataToFullyData:(NSString *)key;
+// 将主体文件保存到完整文件夹。不会检查完整性。完成后将会删除主文件
+- (void)saveMainDataAsFullyData:(NSString *)key;
 
+// 清理数据
+- (void)clear:(SUFileCacheType)type;
+- (void)clearAll;
 
-/**
- 如果完整缓存存在，返回它的路径
-
- @param key 缓存key
- @return file path
- */
-- (NSString *)existFullyMediaDataPath:(NSString *)key;
-
-
-/**
- 清理key对应的临时文件
-
- @param key 缓存key
- */
-- (void)clearTmpMediaData:(NSString *)key;
-
-
-/**
- 清理所有临时文件
- */
-- (void)clearTmpDatas;
-
+// 获取磁盘用量
+- (long long)diskUsageSize:(SUFileCacheType)type;
+- (long long)cacheSize:(NSString *)key cacheType:(SUFileCacheType)type;
 
 @end

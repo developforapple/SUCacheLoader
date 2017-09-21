@@ -7,6 +7,7 @@
 //
 
 #import "SUPlayer.h"
+#import "NSURL+SULoader.h"
 
 @interface SUPlayer ()
 
@@ -43,9 +44,13 @@
 
 - (void)reloadCurrentItem {
     //Item
-    if ([self.url.absoluteString hasPrefix:@"http"]) {
+    
+    if ([self.url isFileURL]) {
+        self.currentItem = [AVPlayerItem playerItemWithURL:self.url];
+        NSLog(@"播放本地文件");
+    }else{
         //有缓存播放缓存文件
-        NSString * cacheFilePath = [[SUFileCache sharedCache] existFullyMediaDataPath:[SUFileCache keyForURL:self.url.absoluteString]];
+        NSString *cacheFilePath = [[SUFileCache sharedCache] existsCacheFilePath:[SUFileCache keyForURL:self.url.absoluteString] cacheType:SUFileCacheTypeFully];
         if (cacheFilePath) {
             NSURL * url = [NSURL fileURLWithPath:cacheFilePath];
             self.currentItem = [AVPlayerItem playerItemWithURL:url];
@@ -60,10 +65,8 @@
             self.currentItem = [AVPlayerItem playerItemWithAsset:asset];
             NSLog(@"无缓存，播放网络文件");
         }
-    }else {
-        self.currentItem = [AVPlayerItem playerItemWithURL:self.url];
-        NSLog(@"播放本地文件");
     }
+    
     //Player
     self.player = [AVPlayer playerWithPlayerItem:self.currentItem];
     self.layer.player = self.player;
@@ -157,8 +160,9 @@
     self.timeObserve = [self.player addPeriodicTimeObserverForInterval:CMTimeMake(1.0, 1.0) queue:dispatch_get_main_queue() usingBlock:^(CMTime time) {
         CGFloat current = CMTimeGetSeconds(time);
         CGFloat total = CMTimeGetSeconds(songItem.duration);
-        weakSelf.duration = total;
-        weakSelf.progress = current / total;
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        strongSelf.duration = total;
+        strongSelf.progress = current / total;
     }];
     [self.player addObserver:self forKeyPath:@"rate" options:NSKeyValueObservingOptionNew context:nil];
     [songItem addObserver:self forKeyPath:@"loadedTimeRanges" options:NSKeyValueObservingOptionNew context:nil];
@@ -241,18 +245,9 @@
 }
 
 #pragma mark - CacheFile
-- (BOOL)currentItemCacheState {
-    if ([self.url.absoluteString hasPrefix:@"http"]) {
-        if (self.resourceLoader) {
-            return self.resourceLoader.cacheFinished;
-        }
-        return YES;
-    }
-    return NO;
-}
 
 + (BOOL)clearCache {
-    [[SUFileCache sharedCache] clearTmpDatas];
+    [[SUFileCache sharedCache] clear:SUFileCacheTypeTmp];
     return YES;
 }
 

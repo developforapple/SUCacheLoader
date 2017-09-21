@@ -7,6 +7,7 @@
 //
 
 #import "SURequestTask.h"
+#import "NSURL+SULoader.h"
 
 @interface SURequestTask ()<NSURLConnectionDataDelegate, NSURLSessionDataDelegate>
 
@@ -17,28 +18,48 @@
 
 @implementation SURequestTask
 
-- (instancetype)init {
-    if (self = [super init]) {
-        __unused SUFileCache *cache = [SUFileCache sharedCache];
+- (instancetype)initWithURL:(NSString *)url cacheType:(SUFileCacheType)type
+{
+    self = [super init];
+    if (self) {
+        self.requestURL = [NSURL URLWithString:url];
+        self.cacheKey = [SUFileCache keyForURL:url];
+        self.cacheType = type;
     }
     return self;
 }
 
-- (void)start {
-    self.cacheKey = [SUFileCache keyForURL:self.requestURL];
+- (NSString *)description
+{
+    return [NSString stringWithFormat:@"\n%@ requestOffset: %d\n fileLength:%d\n缓存类型：%d\n缓存起点:%d\n缓存长度:%d\n缓存终点:%d\n",[super description],_requestOffset,_fileLength,_cacheType,_cacheOffset,_cacheLength,_cacheOffset+_cacheLength];
+}
+
+- (void)start
+{
+    NSLog(@"准备启动下载任务");
+    self.cacheKey = [SUFileCache keyForURL:self.requestURL.absoluteString];
     NSMutableURLRequest * request = [NSMutableURLRequest requestWithURL:[self.requestURL originalSchemeURL] cachePolicy:NSURLRequestReloadIgnoringCacheData timeoutInterval:RequestTimeout];
     if (self.requestOffset > 0) {
         [request addValue:[NSString stringWithFormat:@"bytes=%ld-%ld", self.requestOffset, self.fileLength - 1] forHTTPHeaderField:@"Range"];
     }
+    NSLog(@"请求头：%@",request.allHTTPHeaderFields);
     self.session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration] delegate:self delegateQueue:[NSOperationQueue mainQueue]];
     self.task = [self.session dataTaskWithRequest:request];
     [self.task resume];
+    NSLog(@"下载任务启动！");
 }
 
-- (void)setCancel:(BOOL)cancel {
-    _cancel = cancel;
+- (void)cancel
+{
+    NSLog(@"取消下载任务：%@",self);
+    _cancel = YES;
     [self.task cancel];
     [self.session invalidateAndCancel];
+}
+
+- (void)clearCache
+{
+    [[SUFileCache sharedCache] resetMediaData:self.cacheKey cacheType:self.cacheType];
 }
 
 #pragma mark - NSURLSessionDataDelegate
@@ -48,12 +69,13 @@
     NSLog(@"response: %@",response);
     completionHandler(NSURLSessionResponseAllow);
     NSHTTPURLResponse * httpResponse = (NSHTTPURLResponse *)response;
+    self.response = httpResponse;
     NSString * contentRange = [[httpResponse allHeaderFields] objectForKey:@"Content-Range"];
     NSString * fileLength = [[contentRange componentsSeparatedByString:@"/"] lastObject];
     self.fileLength = fileLength.integerValue > 0 ? fileLength.integerValue : response.expectedContentLength;
     
-    if (self.delegate && [self.delegate respondsToSelector:@selector(requestTaskDidReceiveResponse)]) {
-        [self.delegate requestTaskDidReceiveResponse];
+    if ([self.delegate respondsToSelector:@selector(requestTask:didReceivedResponse:)]) {
+        [self.delegate requestTask:self didReceivedResponse:httpResponse];
     }
 }
 
@@ -61,7 +83,7 @@
 - (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveData:(NSData *)data {
     if (self.cancel) return;
     
-    [[SUFileCache sharedCache] storeMediaData:data forKey:self.cacheKey];
+    [[SUFileCache sharedCache] storeMediaData:data forKey:self.cacheKey cacheType:self.cacheType];
     
     self.cacheLength += data.length;
     if (self.delegate && [self.delegate respondsToSelector:@selector(requestTaskDidUpdateCache)]) {
@@ -74,20 +96,11 @@
     if (self.cancel) {
         NSLog(@"下载取消");
     }else {
-        if (error) {
-            if (self.delegate && [self.delegate respondsToSelector:@selector(requestTaskDidFailWithError:)]) {
-                [self.delegate requestTaskDidFailWithError:error];
-            }
-        }else {
-            //可以缓存则保存文件
-            if (self.cache) {
-                
-                [[SUFileCache sharedCache] saveMediaTmpDataToFullyData:self.cacheKey];
-        
-            }
-            if (self.delegate && [self.delegate respondsToSelector:@selector(requestTaskDidFinishLoadingWithCache:)]) {
-                [self.delegate requestTaskDidFinishLoadingWithCache:self.cache];
-            }
+        if (!error && self.cacheType == SUFileCacheTypeMain){
+            [[SUFileCache sharedCache] saveMainDataAsFullyData:self.cacheKey];
+        }
+        if ([self.delegate respondsToSelector:@selector(requestTask:didCompleted:)]) {
+            [self.delegate requestTask:self didCompleted:error];
         }
     }
 }

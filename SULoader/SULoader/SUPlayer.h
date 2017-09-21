@@ -71,11 +71,6 @@ typedef NS_ENUM(NSInteger, SUPlayerState) {
 - (void)seekToTime:(CGFloat)seconds;
 
 /**
- *  当前歌曲缓存情况 YES：已缓存  NO：未缓存（seek过的歌曲都不会缓存）
- */
-- (BOOL)currentItemCacheState;
-
-/**
  *  清除缓存
  */
 + (BOOL)clearCache;
